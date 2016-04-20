@@ -1,4 +1,4 @@
-package nist.ij.plugins;
+ package nist.ij.plugins;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -24,6 +24,7 @@ import ij.ImageStack;
 import ij.plugin.PlugIn;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import ijtools.Convolver2D;
 import nist.ij.guitools.TextFieldInputPanel;
 import nist.ij.guitools.ValidatorDbl;
 import nist.ij.guitools.ValidatorInt;
@@ -41,6 +42,7 @@ public class SteerableVesselness implements PlugIn {
 	protected double[] dxx = {0.113D,-0.392D,0.025D,-0.184D,0.034D};
 	protected double[] dx = {-1.1215,-0.5576,-0.018,-0.0415,-0.0038};
 	protected int nd = 128;
+	protected int ortho = nd/4;
 	
 	// image settings
 	protected ImagePlus imp;
@@ -65,7 +67,7 @@ public class SteerableVesselness implements PlugIn {
 	
 	public static void main(String[] args) {
 		// set the plugins.dir property to make the plugin appear in the Plugins menu
-		Class<?> clazz = AbsorptionImage.class;
+		Class<?> clazz = SteerableVesselness.class;
 		String url = clazz.getResource("/" + clazz.getName().replace('.', '/') + ".class").toString();
 		String pluginsDir = url.substring(5, url.length() - clazz.getName().length() - 6);
 		System.setProperty("plugins.dir", pluginsDir);
@@ -102,7 +104,7 @@ public class SteerableVesselness implements PlugIn {
 			public void actionPerformed(ActionEvent paramActionEvent) {
 				// image attributes
 				imp = IJ.getImage();
-				dpix = (double[]) imp.getProcessor().getPixels();
+				dpix = castDoublePixels(imp.getProcessor());
 				nx = imp.getWidth();
 				ny = imp.getHeight();
 				nxy = (nx*ny);
@@ -152,23 +154,32 @@ public class SteerableVesselness implements PlugIn {
 	}
 	
 	public void runFrangi() {
-
+		getHessian(imp, 3).show();
 	}
 	
 	private ImagePlus getHessian(ImagePlus ddImage, int sigma) {
+		for (double val : dxx) {
+			IJ.log(Double.toString(val));
+		}
 		SteerableDetector dXX = new SteerableDetector(dpix,nx,ny,1,sigma,4,dxx);
-		ImagePlus orientations = double2ImagePlus("",dXX.computeRotations(nd),nx,ny,nd);
-		ImagePlus maxProj = getMaxProj(orientations);
-		addMinSlice(orientations,maxProj);
+		SteerableDetector dX = new SteerableDetector(dpix,nx,ny,1,sigma,5,dx);
+		dX.run();
+		dXX.run();
+		ImagePlus ddOrientations = double2ImagePlus("",dXX.computeRotations(nd),nd);
+		ImagePlus dOrientations = double2ImagePlus("",dX.computeRotations(nd),nd);
+		ImagePlus hessian = getMaxDeriv(ddOrientations);
+		addMinDeriv(ddOrientations,hessian);
+		addMixedDeriv(dOrientations,hessian,sigma);
+		return hessian;
 	}
 	
-	private ImagePlus getMaxProj(ImagePlus ddImage) {
+	private ImagePlus getMaxDeriv(ImagePlus ddImage) {
 		double[] maxVals = new double[2*nxy];
 		int stackSize = ddImage.getStackSize();
 		
 		for (int d=1; d<=stackSize; d++) {
 			ddImage.setPosition(d);
-			double[] pix = (double[]) ddImage.getProcessor().getPixels();
+			double[] pix = castDoublePixels(ddImage.getProcessor());
 			for (int i = 0; i<nxy; i++) {
 				if (pix[i]>maxVals[i]) {
 					maxVals[i] = pix[i];
@@ -176,26 +187,72 @@ public class SteerableVesselness implements PlugIn {
 				}
 			}
 		}
-		return double2ImagePlus("",maxVals,nx,ny,2);
+		ImagePlus maxProj = double2ImagePlus("",maxVals,2);
+		maxProj.getStack().setSliceLabel("Maximum 2nd Derivative", 1);
+		maxProj.getStack().setSliceLabel("Position", 2);
+		return double2ImagePlus("",maxVals,2);
 	}
 	
-	private void addMinSlice(ImagePlus ddImage, ImagePlus maxProj) {
-		maxProj.setSlice(2);
-		int[] pos = (int[]) maxProj.getProcessor().getPixels();
+	private void addMinDeriv(ImagePlus ddImage, ImagePlus hessian) {
+		hessian.setSlice(2);
+		int[] pos = castIntPixels(hessian.getProcessor());
+		double[] minVals = new double[nxy];
 		
+		for (int i=0; i<nxy; i++) {
+			int index = ((pos[i]+ortho) % nd) + 1;
+			int modifier = (int) Math.signum(index-pos[i]);
+			ddImage.setPosition(index);
+			float[] pix = (float[]) ddImage.getProcessor().getPixels();
+			minVals[i] = (double) modifier * (double) pix[i];
+		}
+		
+		hessian.getStack().addSlice("Orthogonal 2nd Derivative", new FloatProcessor(nx,ny,minVals), 1);
 	}
 	
-	private ImagePlus double2ImagePlus(String title, double[] pix, int width, int height, int stacks) {
-	    ImageStack localImageStack = new ImageStack(width, height);
+	private void addMixedDeriv(ImagePlus dImage, ImagePlus hessian, int sigma) {
+		int gWidth = 4*sigma + 1;
+		double[] g = new double[gWidth];
+		double sigma2 = (double) sigma*sigma;
+		
+		for (int i=0; i<gWidth; i++) {
+			g[i] = Math.exp(-(i*i)/(2.0D*sigma2));
+		}
+		
+		double[] fImage = Convolver2D.convolveEvenX(dpix, g, nx, ny);
+		fImage = Convolver2D.convolveEvenY(fImage, g, nx, ny);
+	}
+	
+	private ImagePlus double2ImagePlus(String title, double[] pix, int stacks) {
+	    ImageStack localImageStack = new ImageStack(nx, ny);
 	    for (int i = 0; i < stacks; i++) {
-	    	double[] arrayOfDouble = new double[width * height];
+	    	double[] arrayOfDouble = new double[nx * ny];
 	    	
-	    	for (int j = 0; j < width * height; j++) {
-	    		arrayOfDouble[j] = pix[(j + i * width * height)];
+	    	for (int j = 0; j < nx * ny; j++) {
+	    		arrayOfDouble[j] = pix[(j + i * nx * ny)];
 	    	}
-	    	localImageStack.addSlice("", new FloatProcessor(width, height, arrayOfDouble));
+	    	localImageStack.addSlice("", new FloatProcessor(nx, ny, arrayOfDouble));
 	    }
 	    return new ImagePlus(title, localImageStack);
+	}
+	
+	private double[] castDoublePixels(ImageProcessor ip) {
+		float[] pix = (float[]) ip.convertToFloatProcessor().getPixels();
+		double[] dpix = new double[pix.length];
+		int i = 0;
+		for (float val: pix) {
+			dpix[i++] = (double) val;
+		}
+		return dpix;
+	}
+	
+	private int[] castIntPixels(ImageProcessor ip) {
+		float[] pix = (float[]) ip.convertToFloatProcessor().getPixels();
+		int[] ipix = new int[pix.length];
+		int i = 0;
+		for (float val: pix) {
+			ipix[i++] = (int) val;
+		}
+		return ipix;
 	}
 
 	@Override
