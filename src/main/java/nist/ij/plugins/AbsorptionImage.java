@@ -30,22 +30,28 @@ public class AbsorptionImage implements PlugIn {
 	String filesep = Pattern.quote(File.separator);
 	String fileind = Pattern.quote(".");
 	
-	// Images
+	// Image directories
 	protected String imageDir;
 	protected String outputDir;
 	protected String calibFile;
-	protected String blankFile;
+	protected String foreFile;
+	protected String backFile;
 	protected String fileType;
+	protected File[] images;
 	
+	// Image classes
 	protected ImagePlus ipCalib;
-	protected ImagePlus ipBlank;
+	protected ImagePlus ipFore;
+	protected ImagePlus ipBack;
 	protected ImageStats isCalib;
-	protected ImageStats isBlank;
+	protected ImageStats isFore;
+	protected ImageStats isBack;
 	
 	// Dialog components
 	JPanel dialog;
 	FileChooserPanel calibField;
-	FileChooserPanel blankField;
+	FileChooserPanel foreField;
+	FileChooserPanel backField;
 	DirectoryChooserPanel imageField;
 	DirectoryChooserPanel saveField;
 	JButton goButton;
@@ -81,7 +87,8 @@ public class AbsorptionImage implements PlugIn {
 		
 		
 		calibField = new FileChooserPanel("Calibration Image: ","");
-		blankField = new FileChooserPanel("Blank Image: ", "");
+		foreField = new FileChooserPanel("Foreground Image: ", "");
+		backField = new FileChooserPanel("Background Image: ", "");
 		imageField = new DirectoryChooserPanel("Image Directory: ","");
 		saveField = new DirectoryChooserPanel("Save Directory","");
 		
@@ -90,40 +97,7 @@ public class AbsorptionImage implements PlugIn {
 		goButton.setForeground(new Color(0,201,201));
 		
 		// Action listeners
-		goButton.addActionListener(new ActionListener() {
-
-			@Override
-			public void actionPerformed(ActionEvent paramActionEvent) {
-				String[] temp = calibField.getFile().getName().split(filesep);
-				calibFile = temp[temp.length-1];
-				IJ.log("Calibration File: " + calibFile);
-				temp = blankField.getFile().getName().split(filesep);
-				blankFile = temp[temp.length-1];
-				IJ.log("Blank File: " + blankFile);
-				temp = calibFile.split(fileind);
-				fileType = temp[temp.length-1];
-				IJ.log("File type: " + fileType);
-				if (!blankField.getValue().endsWith(fileType)) {
-					IJ.error("Blank and Calibration images must be same file type.");
-					return;
-				}
-				ipCalib = IJ.openImage(calibField.getValue());
-				ipBlank = IJ.openImage(blankField.getValue());
-				isCalib = new ImageStats(ipCalib);
-				isBlank = new ImageStats(ipBlank);
-				imageDir = imageField.getValue();
-				outputDir = saveField.getValue();
-				ipCalib.show();
-				ipBlank.show();
-				IJ.log("Image Directory: " + imageDir);
-				IJ.log("Output Directory: " + outputDir);
-				File[] images = getFileInDir(imageDir);
-				for (int i=0; i<images.length; i++) {
-					IJ.log("Image: " + images[i].getName());
-				}
-			}
-			
-		});
+		goButton.addActionListener(new goAction());
 		
 		// Organize and display dialog components
 		c.insets = new Insets(2,8,2,8);
@@ -139,7 +113,10 @@ public class AbsorptionImage implements PlugIn {
 		content.add(calibField,c);
 		
 		c.gridy++;
-		content.add(blankField,c);
+		content.add(foreField,c);
+		
+		c.gridy++;
+		content.add(backField,c);
 		
 		c.gridy++;
 		content.add(imageField,c);
@@ -159,10 +136,57 @@ public class AbsorptionImage implements PlugIn {
 		dialog.setPreferredSize(dialog.getPreferredSize());
 		dialog.setVisible(true);
 	}
+	
+	private class goAction implements ActionListener {
+
+		@Override
+		public void actionPerformed(ActionEvent paramActionEvent) {
+			// get calibration file, foreground file, and background file
+			String[] temp = calibField.getFile().getName().split(filesep);
+			calibFile = temp[temp.length-1];
+			IJ.log("Calibration File: " + calibFile);
+			temp = foreField.getFile().getName().split(filesep);
+			foreFile = temp[temp.length-1];
+			IJ.log("Foreground File: " + foreFile);
+			temp = backField.getFile().getName().split(filesep);
+			backFile = temp[temp.length-1];
+			IJ.log("Background File: " + backFile);
+			
+			// Get the file type and check to make sure that files are the same type
+			temp = calibFile.split(fileind);
+			fileType = temp[temp.length-1];
+			if (!foreField.getValue().endsWith(fileType)) {
+				IJ.error("Blank and Calibration images must be same file type.");
+				return;
+			}
+			
+			// open the calibration, foreground, and background files
+			ipCalib = IJ.openImage(calibField.getValue());
+			isCalib = new ImageStats(ipCalib);
+			
+			isFore = new ImageStats(IJ.openImage(foreField.getValue()));
+			ipFore = isFore.getFrameMean();
+			isFore = null; //hope that garbage collector removes
+			
+			isBack = new ImageStats(IJ.openImage(backField.getValue()));
+			ipBack = isBack.getFrameMean();
+			isBack = null; //hope that garbage collector removes
+			
+			// get the directory with images, and find all images with same file type as foreground
+			imageDir = imageField.getValue();
+			outputDir = saveField.getValue();
+			images = getFileInDir(imageDir);
+			processAbsorption();
+		}
+		
+	}
 
 	public void processAbsorption() {
 		for (int i=0; i<imageDir.length(); i++) {
-			
+			ImageStats currentFile = new ImageStats(IJ.openImage(images[i].getAbsolutePath()));
+			ImagePlus absorbance = currentFile.getAbsorbance(isCalib, ipFore, ipBack);
+			IJ.saveAsTiff(absorbance, outputDir+File.separator+images[i].getName());
+			IJ.log("Saved image: " + images[i].getName());
 		}
 	}
 	
@@ -172,7 +196,7 @@ public class AbsorptionImage implements PlugIn {
 
 			@Override
 			public boolean accept(File directory, String name) {
-				if (name==blankFile || name==calibFile) {
+				if (name==foreFile || name==calibFile || name==backFile) {
 					return false;
 				} else {
 					return name.toLowerCase().endsWith(fileType);
@@ -181,6 +205,8 @@ public class AbsorptionImage implements PlugIn {
 			
 		});
 	}
+	
+	// Action listener for GO button.
 
 	@Override
 	public void run(String arg0) {
