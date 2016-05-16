@@ -6,7 +6,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import ij.IJ;
-import ij.ImageJ;
 import ij.ImagePlus;
 import ij.measure.CurveFitter;
 import ij.plugin.PlugIn;
