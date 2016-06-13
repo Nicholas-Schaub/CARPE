@@ -1,4 +1,4 @@
-package nist.ij.plugins;
+	package nist.ij.plugins;
 
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
@@ -6,6 +6,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import ij.IJ;
+import ij.ImageJ;
 import ij.ImagePlus;
 import ij.measure.CurveFitter;
 import ij.plugin.PlugIn;
@@ -18,6 +19,24 @@ public class RemoveScatter implements PlugIn {
 	protected FloatProcessor pip = null;
 	protected static final int flags = 29;
 	Double[] red;
+	
+	public static void main(String[] args) {
+		// set the plugins.dir property to make the plugin appear in the Plugins menu
+		Class<?> clazz = RemoveScatter.class;
+		String url = clazz.getResource("/" + clazz.getName().replace('.', '/') + ".class").toString();
+		String pluginsDir = url.substring(5, url.length() - clazz.getName().length() - 6);
+		System.setProperty("plugins.dir", pluginsDir);
+
+		// start ImageJ
+		new ImageJ();
+
+		// open the Clown sample
+		ImagePlus image = IJ.openImage("C:\\Program Files\\Micro-Manager-1.4\\images\\melanin.tif");
+		image.show();
+
+		// run the plugin
+		IJ.runPlugIn(clazz.getName(), "");
+	}
 
 	@Override
 	public void run(String arg) {
