@@ -33,23 +33,17 @@ public class AbsorptionImage implements PlugIn {
 	// Image directories
 	protected String imageDir;
 	protected String outputDir;
-	protected String calibFile;
 	protected String foreFile;
 	protected String backFile;
 	protected String fileType;
 	protected File[] images;
 	
 	// Image classes
-	protected ImagePlus ipCalib;
-	protected ImagePlus ipFore;
-	protected ImagePlus ipBack;
-	protected ImageStats isCalib;
 	protected ImageStats isFore;
 	protected ImageStats isBack;
 	
 	// Dialog components
 	JPanel dialog;
-	FileChooserPanel calibField;
 	FileChooserPanel foreField;
 	FileChooserPanel backField;
 	DirectoryChooserPanel imageField;
@@ -85,8 +79,6 @@ public class AbsorptionImage implements PlugIn {
 		JPanel content = new JPanel(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
 		
-		
-		calibField = new FileChooserPanel("Calibration Image: ","");
 		foreField = new FileChooserPanel("Foreground Image: ", "");
 		backField = new FileChooserPanel("Background Image: ", "");
 		imageField = new DirectoryChooserPanel("Image Directory: ","");
@@ -110,9 +102,6 @@ public class AbsorptionImage implements PlugIn {
 		c.gridx = 0;
 		c.gridy = 0;
 		c.weightx = 1;
-		content.add(calibField,c);
-		
-		c.gridy++;
 		content.add(foreField,c);
 		
 		c.gridy++;
@@ -142,50 +131,36 @@ public class AbsorptionImage implements PlugIn {
 		@Override
 		public void actionPerformed(ActionEvent paramActionEvent) {
 			// get calibration file, foreground file, and background file
-			String[] temp = calibField.getFile().getName().split(filesep);
-			calibFile = temp[temp.length-1];
-			IJ.log("Calibration File: " + calibFile);
-			temp = foreField.getFile().getName().split(filesep);
+			String[] temp = foreField.getFile().getName().split(filesep);
 			foreFile = temp[temp.length-1];
 			IJ.log("Foreground File: " + foreFile);
 			temp = backField.getFile().getName().split(filesep);
 			backFile = temp[temp.length-1];
 			IJ.log("Background File: " + backFile);
-			
-			// Get the file type and check to make sure that files are the same type
-			temp = calibFile.split(fileind);
-			fileType = temp[temp.length-1];
-			if (!foreField.getValue().endsWith(fileType)) {
-				IJ.error("Blank and Calibration images must be same file type.");
-				return;
-			}
-			
-			// open the calibration, foreground, and background files
-			ipCalib = IJ.openImage(calibField.getValue());
-			isCalib = new ImageStats(ipCalib);
+			String[] strsplit = temp[temp.length-1].split(fileind);
+			fileType = strsplit[strsplit.length-1];
 			
 			isFore = new ImageStats(IJ.openImage(foreField.getValue()));
-			ipFore = isFore.getFrameMean();
-			isFore = null; //hope that garbage collector removes
 			
 			isBack = new ImageStats(IJ.openImage(backField.getValue()));
-			ipBack = isBack.getFrameMean();
-			isBack = null; //hope that garbage collector removes
 			
 			// get the directory with images, and find all images with same file type as foreground
 			imageDir = imageField.getValue();
 			outputDir = saveField.getValue();
 			images = getFileInDir(imageDir);
+			System.out.println(images.length);
 			processAbsorption();
 		}
 		
 	}
 
 	public void processAbsorption() {
-		for (int i=0; i<imageDir.length(); i++) {
+		for (int i=0; i<images.length; i++) {
+			System.out.println(images[i]);
 			ImageStats currentFile = new ImageStats(IJ.openImage(images[i].getAbsolutePath()));
-			ImagePlus absorbance = currentFile.getAbsorbance(isCalib, ipFore, ipBack);
+			ImagePlus absorbance = currentFile.getAbsorbance(isFore, isBack);
 			IJ.saveAsTiff(absorbance, outputDir+File.separator+images[i].getName());
+			IJ.saveAsTiff(currentFile.getErrorImage(), outputDir+File.separator+images[i].getName()+" Error");
 			IJ.log("Saved image: " + images[i].getName());
 		}
 	}
@@ -196,9 +171,10 @@ public class AbsorptionImage implements PlugIn {
 
 			@Override
 			public boolean accept(File directory, String name) {
-				if (name==foreFile || name==calibFile || name==backFile) {
+				if (name==foreFile || name==backFile) {
 					return false;
 				} else {
+					System.out.println(name);
 					return name.toLowerCase().endsWith(fileType);
 				}
 			}
