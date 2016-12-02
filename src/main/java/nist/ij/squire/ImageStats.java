@@ -1,4 +1,4 @@
-package nist.ij.imagestats;
+package nist.ij.squire;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -54,6 +54,26 @@ public class ImageStats {
 		nSlices = rawImage.getNSlices();
 	}
 	
+	public ImageStats(ImagePlus meanImage, ImagePlus stdImage) {
+		name = meanImage.getTitle();
+		channelLabel = "";
+
+		rawImage = meanImage;
+		this.meanImage = meanImage;
+		this.stdImage = stdImage;
+		
+		// Core and image attributes
+		width = (int) meanImage.getWidth();
+		height = (int) meanImage.getHeight();
+		bitdepth = (int) meanImage.getBitDepth();
+
+		// Make sure the bit depth is something ImageJ can handle
+		if ((bitdepth == 12) || (bitdepth==14)) {imagebitdepth=16;} else {imagebitdepth=bitdepth;}
+
+		nFrames = 1;
+		nSlices = 1;
+	}
+	
 	private float getError(float sampSTD, float sampInt, float sampNum, float forSTD, float forInt) {
 		double ln = Math.log(10);
 		double z = 1.96;
@@ -73,10 +93,6 @@ public class ImageStats {
 		 * foreground - ImageStats object for a blank image with the light on
 		 * background - ImageStats object for a blank image with the light off
 		 *****************************************************************************************/
-		
-		if (foreground.nFrames>1) {
-			IJ.error("Too many frames in foreground image. Replicates must be stored in slices.");
-		}
 		
 		ImagePlus sampSTDImage = this.getFrameDeviation();
 		ImagePlus sampMeanImage = this.getFrameMean();
@@ -113,7 +129,7 @@ public class ImageStats {
 				if (error>0.01 && frame!=nFrames) {
 					continue;
 				} else {
-					abs = (float) -Math.log10(sampInt/(forInt*adjust[frame-1]));
+					abs = (float) -Math.log10(adjust[frame-1]*sampInt/(forInt));
 					absProc.setf(j, abs);
 					errProc.setf(j, error);
 					break;
@@ -122,16 +138,24 @@ public class ImageStats {
 		}
 		
 		errImage = new ImagePlus(name + " Error",errProc);
+		absImage = new ImagePlus(name + " Absorbance",absProc);
 
-		return new ImagePlus(name + " Absorbance",absProc);
+		return absImage;
 	}
 	
-	public ImagePlus getErrorImage() { return errImage;}
+	public ImagePlus getErrorImage() {
+		return errImage;
+	}
 	
 	private ImagePlus getFrameDeviationAndMean(ImagePlus imp) {
+		
+		if (stdImage!=null && stdImage.getNFrames()==nFrames) {
+			return stdImage;
+		}
 
 		stdImage = new ImagePlus();
 		int frames = imp.getNFrames();
+		int replicates = imp.getNSlices();
 		meanImage = IJ.createImage("", width, height, frames, 32);
 		ImageStack meanStack = new ImageStack(width,height);
 		ImageStack stdStack = new ImageStack(width,height);
@@ -144,7 +168,7 @@ public class ImageStats {
 			double[] dpixelmean = new double[flen];
 			float[] fpixeldeviation = new float[flen];
 			double[] dpixeldeviation = new double[flen];
-			for (int j=1; j<=(nSlices); j++) { //loop to calculate the mean
+			for (int j=1; j<=(replicates); j++) { //loop to calculate the mean
 				imp.setPosition(1,j,i);
 				tpixel = (float[]) imp.getProcessor().convertToFloat().getPixels();
 				for (int k=0; k<flen; k++) {
@@ -154,8 +178,8 @@ public class ImageStats {
 			}
 
 			for (int j = 0; j<flen; j++) {
-				dpixelmean[j] /= (double) nSlices;
-				dpixeldeviation[j] /= (double) nSlices;
+				dpixelmean[j] /= (double) replicates;
+				dpixeldeviation[j] /= (double) replicates;
 				dpixeldeviation[j] = Math.sqrt(dpixeldeviation[j] - dpixelmean[j]*dpixelmean[j]);
 				fpixelmean[j] = (float) dpixelmean[j];
 				fpixeldeviation[j] = (float) dpixeldeviation[j];
@@ -176,14 +200,14 @@ public class ImageStats {
 	}
 	
 	public ImagePlus getFrameDeviation() {
-		if (stdImage!=null && stdImage.getNFrames()==nFrames) {
+		if (stdImage!=null) {
 			return stdImage;
 		}
 		return getFrameDeviationAndMean(rawImage);
 	}
 
 	public ImagePlus getFrameMean() {
-		if (meanImage!=null && meanImage.getNFrames()==nFrames) {
+		if (meanImage!=null) {
 			return meanImage;
 		}
 		getFrameDeviationAndMean(rawImage);
