@@ -72,6 +72,7 @@ public class AbsorptionImage implements PlugIn {
 	
 	// Options checkbox
 	private JCheckBox skipProcessedBox;
+	private JCheckBox calculateErrorBox;
 	
 	// calculate absorption values
 	JButton goButton;
@@ -102,7 +103,7 @@ public class AbsorptionImage implements PlugIn {
 		// Set up dialog components
 		JFrame dialog = new JFrame();
 		dialog.setTitle("Quantitative Absorption");
-		dialog.setSize(new Dimension(501,271));
+		dialog.setSize(new Dimension(501,283));
 		
 		JPanel content = new JPanel(new GridBagLayout());
 		GridBagConstraints c = new GridBagConstraints();
@@ -174,12 +175,17 @@ public class AbsorptionImage implements PlugIn {
 		squirePanel.add(squireFolder,c);
 		
 		c.gridy++;
+		c.gridwidth = 2;
 		squirePanel.add(skipProcessedBox,c);
+		
+		c.gridx = 2;
+		squirePanel.add(calculateErrorBox,c);
 		
 		singleChannel.setSelected(true);
 		
 		// Add go button
 		c.gridy = 3;
+		c.gridx = 0;
 		c.fill = GridBagConstraints.NONE;
 		c.ipadx = 10;
 		c.ipady = 10;
@@ -220,8 +226,10 @@ public class AbsorptionImage implements PlugIn {
 				pMon.setMillisToDecideToPopup(0);
 				pMon.setMillisToPopup(0);
 				
-				thread = new Thread(new ProcessSquireAbsorption(sFiles,pMon));
+				thread = new Thread(new ProcessSquireAbsorption(sFiles,pMon,calculateErrorBox.isSelected()));
 				thread.start();
+			} else {
+				
 			}
 			
 		}
@@ -232,14 +240,18 @@ public class AbsorptionImage implements PlugIn {
 		
 		SquireFileSystem sFiles;
 		ProgressMonitor progbar;
+		boolean saveError;
 		
-		public ProcessSquireAbsorption(SquireFileSystem files, ProgressMonitor progbar) {
-			sFiles = files;
+		public ProcessSquireAbsorption(SquireFileSystem files, ProgressMonitor progbar, boolean saveError) {
+			this.sFiles = files;
 			this.progbar = progbar;
+			this.saveError = saveError;
 		}
 		
 		public void run() {
 			int progress = 0;
+			
+			progbar.setProgress(0);
 			
 			sampLoop:
 			while (sFiles.moreSamples()) {
@@ -260,15 +272,18 @@ public class AbsorptionImage implements PlugIn {
 							System.out.println("Current Image: " + sFiles.currentImage());
 							progbar.setNote(sFiles.textUpdate());
 
-							if (skipProcessedBox.isSelected() && sFiles.alreadyProcessed()) {
+							if (skipProcessedBox.isSelected() && sFiles.absAlreadyProcessed()) {
 								progbar.setProgress(progress++);
 								sFiles.nextImage();
 								continue;
 							}
 							ImageStats image = sFiles.getSampleIS();
 							ImagePlus absorbance = image.getAbsorbance(sFiles.getForeIS(), sFiles.getBackIS());
-							IJ.saveAsTiff(absorbance, sFiles.getAbsorptionDir()+File.separator+image.getName());
-							IJ.saveAsTiff(image.getErrorImage(), sFiles.getAbsorptionDir()+File.separator+image.getName()+" Error");
+							IJ.saveAsTiff(absorbance, sFiles.getAbsorptionDir(true)+File.separator+image.getName());
+							
+							if (saveError) {
+								IJ.saveAsTiff(image.getErrorImage(), sFiles.getAbsorptionDir(true)+File.separator+image.getName()+" Error");
+							}
 							
 							progbar.setProgress(progress++);
 							sFiles.nextImage();
@@ -291,25 +306,6 @@ public class AbsorptionImage implements PlugIn {
 		}
 	}
 	
-	public File[] getFileInDir(String directory) {
-		File folder = new File(directory);
-		return folder.listFiles(new FilenameFilter() {
-
-			@Override
-			public boolean accept(File directory, String name) {
-				if (name==foreFile || name==backFile) {
-					return false;
-				} else {
-					System.out.println(name);
-					return name.toLowerCase().endsWith(fileType);
-				}
-			}
-			
-		});
-	}
-	
-	// Action listener for GO button.
-
 	@Override
 	public void run(String arg0) {
 		try {
@@ -373,6 +369,8 @@ public class AbsorptionImage implements PlugIn {
 			squireFolder = new FileChooserPanel("SQuIRE Folder: ","");
 			skipProcessedBox = new JCheckBox("Skip previously processed files ");
 			skipProcessedBox.setSelected(true);
+			calculateErrorBox = new JCheckBox("Generate error image ");
+			calculateErrorBox.setSelected(false);
 			
 		// Panel for manual selection of files
 		manualPanel = new JPanel(new GridBagLayout());

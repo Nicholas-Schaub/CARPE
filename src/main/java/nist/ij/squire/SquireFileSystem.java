@@ -3,6 +3,7 @@ package nist.ij.squire;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import ij.IJ;
@@ -14,8 +15,10 @@ public class SquireFileSystem {
 	public static final int ALLTIMEPOINTS = 3;
 	public static final int ALLSAMPLES = 4;
 	public static final String CALIBRATION_DIR = "Calibration Images";
+	public static final String SEGMENTATION_DIR = "Segmented Images";
 	public static final String RAW_DIR = "Raw Images";
 	public static final String ABSORPTION_DIR = "Absorption Images";
+	public static final String STITCH_DIR = "Stitch Images";
 	public static final String FILESEP = Pattern.quote(File.separator);
 	
 	public static final String FORE_RAW_FILE = "Light Background.tif";
@@ -40,6 +43,7 @@ public class SquireFileSystem {
 	private int sampIndex = 0;
 	private int timeIndex = 0;
 	private int chanIndex = 0;
+	private Pattern p = Pattern.compile("(\\w+)_r(\\d+)_c(\\d+).tif+");
 	private boolean newFore = true;
 	private boolean newBack = true;
 	private int imageIndex = 0;
@@ -133,6 +137,10 @@ public class SquireFileSystem {
 						
 					});
 					
+					if (chanSubs==null) {
+						continue;
+					}
+					
 					int isValid = 0;
 					for (File folder : chanSubs) {
 						if (folder.getName().toLowerCase().contentEquals(CALIBRATION_DIR.toLowerCase()) ||
@@ -213,6 +221,33 @@ public class SquireFileSystem {
 		return imageFiles.get(sampIndex).get(timeIndex).get(chanIndex)[imageIndex].getName();
 	}
 	
+	public String currentImageWell() {
+		Matcher m = p.matcher(currentImage());
+		if (m.matches()) {
+			return m.group(1);
+		} else {
+			return null;
+		}
+	}
+	
+	public int currentImageRow() {
+		Matcher m = p.matcher(currentImage());
+		if (m.matches()) {
+			return Integer.parseInt(m.group(2));
+		} else {
+			return 0;
+		}
+	}
+	
+	public int currentImageCol() {
+		Matcher m = p.matcher(currentImage());
+		if (m.matches()) {
+			return Integer.parseInt(m.group(3));
+		} else {
+			return 0;
+		}
+	}
+	
 	public int numSamples() {
 		return samples.length;
 	}
@@ -229,11 +264,27 @@ public class SquireFileSystem {
 		return imageFiles.get(sampIndex).get(timeIndex).get(chanIndex).length;
 	}
 	
+	public void prevSample() {
+		sampIndex--;
+		resetTimepointIndex();
+		if (sampIndex<0) {
+			sampIndex++;
+		}
+	}
+	
 	public void nextSample() {
 		sampIndex++;
 		resetTimepointIndex();
 		if (sampIndex>numSamples()) {
 			sampIndex--;
+		}
+	}
+	
+	public void prevTimepoint() {
+		timeIndex--;
+		resetChannelIndex();
+		if (timeIndex<0) {
+			timeIndex++;
 		}
 	}
 	
@@ -245,11 +296,23 @@ public class SquireFileSystem {
 		}
 	}
 	
+	public void prevChannel() {
+		chanIndex--;
+		resetImageIndex();
+		if (chanIndex<0) {
+			chanIndex++;
+		} else {
+			newFore = true;
+		}
+	}
+	
 	public void nextChannel() {
 		chanIndex++;
 		resetImageIndex();
 		if (chanIndex>numChannels()) {
 			chanIndex--;
+		} else {
+			newFore = true;
 		}
 	}
 	
@@ -382,9 +445,12 @@ public class SquireFileSystem {
 		for (int file = 0; file<calibrationFiles.get(sampIndex).get(timeIndex).get(chanIndex).length; file++) {
 			File temp = calibrationFiles.get(sampIndex).get(timeIndex).get(chanIndex)[file];
 			if (temp.getName().endsWith(FORE_MEAN_FILE)) {
+				System.out.println("Found mean image!");
 				for (int bfile = 0; bfile<calibrationFiles.get(sampIndex).get(timeIndex).get(chanIndex).length; bfile++) {
 					File btemp = calibrationFiles.get(sampIndex).get(timeIndex).get(chanIndex)[bfile];
-					if (temp.getName().endsWith(FORE_STD_FILE)) {
+					System.out.println(btemp.getName());
+					if (btemp.getName().endsWith(FORE_STD_FILE)) {
+						System.out.println("Found std image!");
 						currentFore = new ImageStats(IJ.openImage(temp.getAbsolutePath()),IJ.openImage(btemp.getAbsolutePath()));
 						newFore = false;
 						return currentFore;
@@ -414,18 +480,46 @@ public class SquireFileSystem {
 		return null;
 	}
 	
-	public String getAbsorptionDir() {
-		File f = new File(currentChannelDir()+File.separator+ABSORPTION_DIR);
-		if (!f.isDirectory()) {
+	public String getStitchDir(boolean createDirectory) {
+		File f = new File(currentChannelDir()+File.separator+STITCH_DIR);
+		if (!f.isDirectory() && createDirectory) {
 			f.mkdir();
+		} else if (!f.isDirectory()) {
+			return null;
 		}
 		
 		return f.getAbsolutePath();
 	}
 	
-	public boolean alreadyProcessed() {
+	public String getAbsorptionDir(boolean createDirectory) {
+		File f = new File(currentChannelDir()+File.separator+ABSORPTION_DIR);
+		if (!f.isDirectory() && createDirectory) {
+			f.mkdir();
+		} else if (!f.isDirectory()) {
+			return null;
+		}
 		
-		File[] f = new File(getAbsorptionDir()).listFiles(new FileFilter(){
+		return f.getAbsolutePath();
+	}
+	
+	public String getSegmentDir(boolean createDirectory) {
+		File f = new File(currentChannelDir()+File.separator+SEGMENTATION_DIR);
+		if (!f.isDirectory() && createDirectory) {
+			f.mkdir();
+		} else if (!f.isDirectory()) {
+			return null;
+		}
+		
+		return f.getAbsolutePath();
+	}
+	
+	public boolean absAlreadyProcessed() {
+		
+		if (getAbsorptionDir(false)==null) {
+			return false;
+		}
+		
+		File[] f = new File(getAbsorptionDir(false)).listFiles(new FileFilter(){
 
 			@Override
 			public boolean accept(File file) {

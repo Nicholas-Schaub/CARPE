@@ -120,8 +120,8 @@ public class ImageStats {
 				sampMeanImage.setSlice(frame);
 				sampSTDImage.setSlice(frame);
 				backMean = backMeanImage.getProcessor().getf(j);
-				sampSTD = sampSTDImage.getProcessor().getf(j)/adjust[frame-1];
-				sampInt = (sampMeanImage.getProcessor().getf(j)-backMean)/adjust[frame-1];
+				sampSTD = adjust[frame-1]*sampSTDImage.getProcessor().getf(j);
+				sampInt = (adjust[frame-1]*sampMeanImage.getProcessor().getf(j)-backMean);
 				forSTD = forSTDImage.getProcessor().getf(j);
 				forInt = forMeanImage.getProcessor().getf(j)-backMean;
 				error = this.getError(sampSTD, sampInt, nSlices, forSTD, forInt);
@@ -129,7 +129,7 @@ public class ImageStats {
 				if (error>0.01 && frame!=nFrames) {
 					continue;
 				} else {
-					abs = (float) -Math.log10(adjust[frame-1]*sampInt/(forInt));
+					abs = (float) -Math.log10(sampInt/(forInt));
 					absProc.setf(j, abs);
 					errProc.setf(j, error);
 					break;

@@ -38,12 +38,6 @@
 	</scm>
 
 
-	<dependencies>
-		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>ij</artifactId>
-		</dependency>
-	</dependencies>
 
 	<build>
 		<plugins>
