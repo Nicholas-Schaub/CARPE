@@ -12,11 +12,13 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.regex.Pattern;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
@@ -28,6 +30,7 @@ import ij.IJ;
 import ij.ImageJ;
 import ij.plugin.PlugIn;
 import nist.ij.guitools.FileChooserPanel;
+import nist.ij.guitools.TextFieldInputPanel;
 import nist.ij.squire.SquireFileSystem;
 
 public class SQuIREStitch implements PlugIn {
@@ -47,6 +50,7 @@ public class SQuIREStitch implements PlugIn {
 	// main panels
 	JPanel dialog;
 	JPanel squirePanel;
+	JPanel mistPanel;
 	
 	// GUI components to use SQuIRE file system
 	private FileChooserPanel squireFolder;
@@ -55,6 +59,12 @@ public class SQuIREStitch implements PlugIn {
 	private JToggleButton singleTimePoint;
 	private JToggleButton allTimePoints;
 	private JToggleButton allSamples;
+	
+	// GUI components for MIST Settings
+	private TextFieldInputPanel vertOverlapInput;
+	private TextFieldInputPanel horzOverlapInput;
+	private TextFieldInputPanel gridOriginInput;
+	private JCheckBox alignChannelsBox;
 		
 	// calculate absorption values
 	JButton goButton;
@@ -68,6 +78,11 @@ public class SQuIREStitch implements PlugIn {
 	String startrow = "0";
 	String programType = "Auto";
 	String headless = "True";
+	String vertOverlap = "6";
+	String horzOverlap = "5";
+	String gridOrigin = "LL";
+	HashMap<String,String> originVals = new HashMap<String,String>();
+	ArrayList<String> originKeys = new ArrayList<String>();
 
 	protected static final int flags = 29;
 	
@@ -401,7 +416,7 @@ public class SQuIREStitch implements PlugIn {
 
 		// Panel for SQuIRE file system
 		squirePanel = new JPanel(new GridBagLayout());
-		squirePanel.setBorder(BorderFactory.createTitledBorder("Use Squire File System"));
+		squirePanel.setBorder(BorderFactory.createTitledBorder("Squire File System"));
 			folderDepth = new ButtonGroup();
 				singleChannel = new JToggleButton("Single Channel");
 				singleChannel.setToolTipText("<html>The folder selected only contains images for a single channel and was captured by SQuIRE.</html>");
@@ -412,6 +427,8 @@ public class SQuIREStitch implements PlugIn {
 				allSamples = new JToggleButton("All Samples");
 				allSamples.setToolTipText("<html>The folder selected contains multiple samples and time points, captured by SQuIRE.</html>");
 			squireFolder = new FileChooserPanel("SQuIRE Folder: ","");
+			
+		
 			
 		goButton = new JButton("GO!");
 		goButton.setFont(new Font("Arial",Font.BOLD,16));
