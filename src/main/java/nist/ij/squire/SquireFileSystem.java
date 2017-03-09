@@ -38,7 +38,10 @@ public class SquireFileSystem {
 	private File[] samples;
 	
 	// File index
-	private int numFiles = 0;
+	private int totalFiles = 0;
+	private int totalChannels = 0;
+	private int totalTimepoints = 0;
+	private int numSamples = 0;
 	private int dirIndex = 0;
 	private int sampIndex = 0;
 	private int timeIndex = 0;
@@ -66,7 +69,17 @@ public class SquireFileSystem {
 
 				@Override
 				public boolean accept(File file) {
-					return file.isDirectory();
+					System.out.println(file.getName());
+					if (file.isDirectory()) {
+						File[] subDir = new File(file.getAbsolutePath()).listFiles();
+						for (int i = 0; i<subDir.length; i++) {
+							if (subDir[i].isDirectory() && subDir[i].getName().startsWith("Date")) {
+								numSamples++;
+								return true;
+							}
+						}
+					}
+					return false;
 				}
 				
 			});
@@ -81,12 +94,18 @@ public class SquireFileSystem {
 
 					@Override
 					public boolean accept(File file) {
+						totalTimepoints++;
 						return file.isDirectory();
 					}
 					
 				});
 				
-				timepoints.add(timePaths);
+				System.out.println(sample.getName());
+				if (timePaths==null) {
+					System.out.println("No Time Paths Found!");
+				} else {
+					timepoints.add(timePaths);
+				}
 			}
 		} else {
 			timepoints.add(new File[1]);
@@ -101,6 +120,7 @@ public class SquireFileSystem {
 
 						@Override
 						public boolean accept(File file) {
+							totalChannels++;
 							return file.isDirectory();
 						}
 						
@@ -162,7 +182,7 @@ public class SquireFileSystem {
 						public boolean accept(File file) {
 							String name = file.getName();
 							if (name.toLowerCase().endsWith(fileType.toLowerCase())) {
-								numFiles++;
+								totalFiles++;
 								return true;
 							} else {
 								return false;
@@ -187,6 +207,10 @@ public class SquireFileSystem {
 				}
 			}
 		}
+		System.out.println("Number of Samples: " + numSamples);
+		System.out.println("Number of Timepoints: " + totalTimepoints);
+		System.out.println("Number of Channels: " + totalChannels);
+		System.out.println("Number of Files: " + totalFiles);
 	}
 	
 	public String currentSampleDir() {
@@ -540,8 +564,16 @@ public class SquireFileSystem {
 		}
 	}
 	
+	public int totalChannels() {
+		return totalChannels;
+	}
+	
+	public int totalTimepoints() {
+		return totalTimepoints;
+	}
+	
 	public int numFiles() {
-		return numFiles;
+		return totalFiles;
 	}
 	
 	public String textUpdate() {

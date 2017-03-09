@@ -269,7 +269,7 @@ public class AbsorptionImage implements PlugIn {
 								break sampLoop;
 							}
 							System.out.println("Current Image: " + sFiles.currentImage());
-							progbar.setNote(sFiles.textUpdate());
+							//progbar.setNote(sFiles.textUpdate());
 
 							if (skipProcessedBox.isSelected() && sFiles.absAlreadyProcessed()) {
 								progbar.setProgress(progress++);

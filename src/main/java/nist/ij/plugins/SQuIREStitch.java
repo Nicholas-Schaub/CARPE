@@ -1,6 +1,5 @@
 package nist.ij.plugins;
 
-import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -19,7 +18,9 @@ import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 import javax.swing.ProgressMonitor;
@@ -31,6 +32,7 @@ import ij.ImageJ;
 import ij.plugin.PlugIn;
 import nist.ij.guitools.FileChooserPanel;
 import nist.ij.guitools.TextFieldInputPanel;
+import nist.ij.guitools.ValidatorInt;
 import nist.ij.squire.SquireFileSystem;
 
 public class SQuIREStitch implements PlugIn {
@@ -61,9 +63,10 @@ public class SQuIREStitch implements PlugIn {
 	private JToggleButton allSamples;
 	
 	// GUI components for MIST Settings
-	private TextFieldInputPanel vertOverlapInput;
-	private TextFieldInputPanel horzOverlapInput;
-	private TextFieldInputPanel gridOriginInput;
+	private TextFieldInputPanel<Integer> vertOverlapInput;
+	private TextFieldInputPanel<Integer> horzOverlapInput;
+	private JLabel gridOriginBoxLabel;
+	private JComboBox gridOriginInput;
 	private JCheckBox alignChannelsBox;
 		
 	// calculate absorption values
@@ -78,10 +81,12 @@ public class SQuIREStitch implements PlugIn {
 	String startrow = "0";
 	String programType = "Auto";
 	String headless = "True";
-	String vertOverlap = "6";
-	String horzOverlap = "5";
+	String vertOverlap = "10";
+	String horzOverlap = "10";
 	String gridOrigin = "LL";
-	HashMap<String,String> originVals = new HashMap<String,String>();
+	String[] gridOriginLabels = {"Upper Left", "Upper Right", "Lower Left", "Lower Right"};
+	String[] gridOriginValues = {"UL", "UR", "LL", "LR"}; 
+	HashMap<String,String> gridOriginHashMap = new HashMap<String,String>();
 	ArrayList<String> originKeys = new ArrayList<String>();
 
 	protected static final int flags = 29;
@@ -105,22 +110,18 @@ public class SQuIREStitch implements PlugIn {
 		
 		// Set up dialog components
 		JFrame dialog = new JFrame();
+		dialog.setLayout(new GridBagLayout());
 		dialog.setTitle("Quantitative Absorption");
-		dialog.setSize(new Dimension(501,271));
-		
-		JPanel content = new JPanel(new GridBagLayout());
+		dialog.setSize(new Dimension(367,281));
 		GridBagConstraints c = new GridBagConstraints();
 		
 		// Basic constraints
 		c.insets = new Insets(1, 1, 1, 1);
 		c.anchor = GridBagConstraints.NORTH;
 		c.fill = GridBagConstraints.HORIZONTAL;
+		c.weightx = 1;
 		
-		// Create SQuIRE file system panel
-		c.gridy = 2;
-		c.gridwidth = 2;
-		content.add(squirePanel,c);
-		
+		// Create SQuIRE file system panel		
 		folderDepth.add(singleChannel);
 		folderDepth.add(singleTimePoint);
 		folderDepth.add(allTimePoints);
@@ -134,30 +135,61 @@ public class SQuIREStitch implements PlugIn {
 		c.gridx++;
 		squirePanel.add(singleTimePoint,c);
 		
-		c.gridx++;
+		c.gridx = 0;
+		c.gridy++;
 		squirePanel.add(allTimePoints,c);
 		
 		c.gridx++;
 		squirePanel.add(allSamples,c);
 		
-		c.gridwidth = 4;
+		c.gridwidth = 2;
 		c.gridx = 0;
 		c.gridy++;
 		squirePanel.add(squireFolder,c);
 		
 		singleChannel.setSelected(true);
 		
+		c.gridy = 0;
+		c.gridwidth = 1;
+		c.weightx = 1;
+		c.weighty = 1;
+		dialog.add(squirePanel,c);
+		
+		// Create MIST Settings Panel
+		c.gridy = 0;
+		c.gridx = 0;
+		c.gridwidth = 1;
+		c.anchor = GridBagConstraints.EAST;
+		c.fill = GridBagConstraints.NONE;
+		mistPanel.add(vertOverlapInput,c);
+		
+		c.gridx++;
+		c.anchor = GridBagConstraints.WEST;
+		mistPanel.add(horzOverlapInput,c);
+		
+		c.gridy++;
+		c.gridx = 0;
+		c.anchor = GridBagConstraints.EAST;
+		mistPanel.add(gridOriginBoxLabel,c);
+		
+		c.gridx++;
+		c.anchor = GridBagConstraints.WEST;
+		mistPanel.add(gridOriginInput,c);
+		
+		c.anchor = GridBagConstraints.NORTH;
+		c.fill = GridBagConstraints.BOTH;
+		c.gridy = 1;
+		c.gridx = 0;
+		dialog.add(mistPanel,c);
+		
 		// Add go button
-		c.gridy = 3;
+		c.gridy = 2;
 		c.fill = GridBagConstraints.NONE;
 		c.ipadx = 10;
 		c.ipady = 10;
-		content.add(goButton,c);
+		dialog.add(goButton,c);
 		
-		c.gridx = 0;
-		c.gridy = 0;
-		c.fill = GridBagConstraints.HORIZONTAL;
-		dialog.add(content,BorderLayout.NORTH);
+		// Display Dialog
 		dialog.setLocationRelativeTo(null);
 		dialog.setVisible(true);
 	}
@@ -196,9 +228,12 @@ public class SQuIREStitch implements PlugIn {
 
 	class StitchImages implements Runnable {
 		SquireFileSystem sFiles;
+		ProgressMonitor pMon;
 		
 		public StitchImages(SquireFileSystem sFiles) {
 			this.sFiles = sFiles;
+			pMon = new ProgressMonitor(dialog,"Stitching images...",
+					   				   "",0,sFiles.totalTimepoints());
 		}
 		
 		String well = "";
@@ -207,6 +242,12 @@ public class SQuIREStitch implements PlugIn {
 
 		@Override
 		public void run() {
+			pMon.setMillisToDecideToPopup(0);
+			pMon.setMillisToPopup(0);
+			int progress = 0;
+			pMon.setProgress(progress);
+			
+			sampLoop:
 			while (sFiles.moreSamples()) {
 				
 				while (sFiles.moreTimepoints()) {
@@ -219,8 +260,12 @@ public class SQuIREStitch implements PlugIn {
 							
 							sFiles.nextChannel();
 							continue;
-							
-						} else if (sFiles.getAbsorptionDir(false)==null) {
+						}
+						
+						pMon.setProgress(progress++);
+						pMon.setNote("Processing timepoint " + Integer.toString(progress) + " of " + Integer.toString(sFiles.totalTimepoints()));
+
+						if (sFiles.getAbsorptionDir(false)==null) {
 							System.out.println("Could not find an Absorbance image directory. Skipping folder.");
 							sFiles.nextChannel();
 							continue;
@@ -337,13 +382,13 @@ public class SQuIREStitch implements PlugIn {
 							String isHeadless = " headless=true";
 							options += isHeadless;
 							
-							String gridOrigin = " gridorigin=LR";
+							String gridOrigin = " gridorigin=" + gridOriginHashMap.get(gridOriginInput.getSelectedItem());
 							options += gridOrigin;
 							
-							String horizontaloverlap = " horiztonaloverlap=16";
+							String horizontaloverlap = " horiztonaloverlap=" + horzOverlapInput.getValue().toString();
 							options += horizontaloverlap;
 							
-							String verticaloverlap = " verticaloverlap=16";
+							String verticaloverlap = " verticaloverlap=" + vertOverlapInput.getValue().toString();
 							options += verticaloverlap;
 							
 							String outputfullimage = " outputfullimage=true";
@@ -352,8 +397,12 @@ public class SQuIREStitch implements PlugIn {
 							String outfileimage = " outfileprefix=" + wells.get(well) + "-";
 							options += outfileimage;
 							
-							String useMeta = " outfileprefix=" + wells.get(well) + "-";
-							options += useMeta;
+							String dispLog = " loglevel=none";
+							options += dispLog;
+							
+							if (pMon.isCanceled()) {
+								break sampLoop;
+							}
 							
 							IJ.run("MIST",options);
 						}
@@ -363,6 +412,8 @@ public class SQuIREStitch implements PlugIn {
 				}
 				sFiles.nextSample();
 			}
+			
+			pMon.close();
 			
 			// Find the grid width and height according to 
 			
@@ -413,6 +464,10 @@ public class SQuIREStitch implements PlugIn {
 	}
 	
 	private void initElements() {
+		
+		for (int i = 0; i < gridOriginLabels.length; i++) {
+			gridOriginHashMap.put(gridOriginLabels[i], gridOriginValues[i]);
+		}
 
 		// Panel for SQuIRE file system
 		squirePanel = new JPanel(new GridBagLayout());
@@ -428,7 +483,15 @@ public class SQuIREStitch implements PlugIn {
 				allSamples.setToolTipText("<html>The folder selected contains multiple samples and time points, captured by SQuIRE.</html>");
 			squireFolder = new FileChooserPanel("SQuIRE Folder: ","");
 			
-		
+		mistPanel = new JPanel(new GridBagLayout());
+		mistPanel.setBorder(BorderFactory.createTitledBorder("MIST Settings"));
+			vertOverlapInput = new TextFieldInputPanel<Integer>("Vertical Overlap: ", vertOverlap, 3, new ValidatorInt(1,50));
+			vertOverlapInput.setToolTipText("<html>Indicate the amount of vertical overlap as a percentage of the image.</html>");
+			horzOverlapInput = new TextFieldInputPanel<Integer>("Horizontal Overlap: ", horzOverlap, 3, new ValidatorInt(1,50));
+			horzOverlapInput.setToolTipText("<html>Indicate the amount of horizontal overlap as a percentage of the image.</html>");
+			gridOriginBoxLabel = new JLabel("Grid Origin: ");
+			gridOriginInput = new JComboBox(gridOriginLabels);
+			gridOriginInput.setSelectedIndex(1);
 			
 		goButton = new JButton("GO!");
 		goButton.setFont(new Font("Arial",Font.BOLD,16));
