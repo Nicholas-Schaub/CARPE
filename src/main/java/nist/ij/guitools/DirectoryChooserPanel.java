@@ -1,5 +1,5 @@
 package nist.ij.guitools;
-  
+
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -12,7 +12,7 @@ import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-      
+
 public class DirectoryChooserPanel extends JPanel {
 	private static final long serialVersionUID = 1L;
 	private JLabel label;

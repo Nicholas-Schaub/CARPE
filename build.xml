@@ -84,14 +84,4 @@
         <property name="build.compiler" value="org.eclipse.jdt.core.JDTCompilerAdapter"/>
         <antcall target="build"/>
     </target>
-    <target name="IntegralImage2DerivativePlugin">
-        <java classname="IntegralImage2DerivativePlugin" failonerror="true" fork="yes">
-            <classpath refid="run.IntegralImage2DerivativePlugin.classpath"/>
-        </java>
-    </target>
-    <target name="IntegralImage2DerivativePlugin (1)">
-        <java classname="nist.ij.integral.IntegralImage2DerivativePlugin" failonerror="true" fork="yes">
-            <classpath refid="run.IntegralImage2DerivativePlugin (1).classpath"/>
-        </java>
-    </target>
 </project>

@@ -8,7 +8,7 @@
 	<parent>
 		<groupId>net.imagej</groupId>
 		<artifactId>pom-imagej</artifactId>
-		<version>7.0.0</version>
+		<version>17.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -20,16 +20,15 @@
 	<developers>
 		<developer>
 			<id>dscho</id>
-			<name>Johannes Schindelin</name>
-			<email>johannes.schindelin@gmx.de</email>
-			<url>http://loci.wisc.edu/people/johannes-schindelin</url>
-			<organization>UW-Madison LOCI</organization>
-			<organizationUrl>http://loci.wisc.edu/</organizationUrl>
+			<name>Nicholas Schaub</name>
+			<email>nicholas.j.schaub@nist.gov</email>
+			<organization>National Institute of Standards and Technology</organization>
+			<organizationUrl>www.nist.gov</organizationUrl>
 			<roles>
 				<role>architect</role>
 				<role>developer</role>
 			</roles>
-			<timezone>-6</timezone>
+			<timezone>-5</timezone>
 		</developer>
 	</developers>
 
@@ -60,4 +59,18 @@
 		<name>NIST</name>
 		<url>www.nist.gov</url>
 	</organization>
+	<dependencies>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>ij</artifactId>
+		</dependency>
+	</dependencies>
+	
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+	    	<id>imagej.public</id>
+	    	<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
 </project>
