@@ -55,6 +55,11 @@ public class AbsorptionImage implements PlugIn {
 	private JToggleButton selectFiles;
 	private ButtonGroup fileSystemGroup;
 	
+	// select calculation of absorbance or transmittance
+	private JToggleButton useAbsorption;
+	private JToggleButton useTransmittance;
+	private ButtonGroup pixelTypeGroup;
+	
 	// GUI components to use SQuIRE file system
 	private FileChooserPanel squireFolder;
 	private ButtonGroup folderDepth;
@@ -125,6 +130,21 @@ public class AbsorptionImage implements PlugIn {
 		c.gridx++;
 		content.add(useSQuIREFiles,c);
 		selectFiles.setSelected(true);
+		
+		// Create the transmittance/absorbance selection buttons
+		c.gridy++;
+		c.gridx = 0;
+		pixelTypeGroup.add(useAbsorption);
+		pixelTypeGroup.add(useTransmittance);
+		c.ipady = 0;
+		c.ipadx = 0;
+		c.gridwidth = 1;
+		c.gridx = 0;
+		c.weightx = 1;
+		content.add(useAbsorption,c);
+		c.gridx++;
+		content.add(useTransmittance,c);
+		useAbsorption.setSelected(true);
 		
 		// Create manual file system panel
 		c.gridx = 0;
@@ -270,15 +290,26 @@ public class AbsorptionImage implements PlugIn {
 							}
 							System.out.println("Current Image: " + sFiles.currentImage());
 							//progbar.setNote(sFiles.textUpdate());
-
-							if (skipProcessedBox.isSelected() && sFiles.absAlreadyProcessed()) {
+							
+							boolean alreadyProcessed = false;
+							if (useAbsorption.isSelected()) {
+								alreadyProcessed = sFiles.absAlreadyProcessed();
+							} else if (useTransmittance.isSelected()) {
+								alreadyProcessed = sFiles.transAlreadyProcessed();
+							}
+							if (skipProcessedBox.isSelected() && alreadyProcessed) {
 								progbar.setProgress(progress++);
 								sFiles.nextImage();
 								continue;
 							}
 							ImageStats image = sFiles.getSampleIS();
-							ImagePlus absorbance = image.getAbsorbance(sFiles.getForeIS(), sFiles.getBackIS());
-							IJ.saveAsTiff(absorbance, sFiles.getAbsorptionDir(true)+File.separator+image.getName());
+							if (useAbsorption.isSelected()) {
+								ImagePlus absorbance = image.getAbsorbance(sFiles.getForeIS(), sFiles.getBackIS());
+								IJ.saveAsTiff(absorbance, sFiles.getAbsorptionDir(true)+File.separator+image.getName());
+							} else if (useTransmittance.isSelected()) {
+								ImagePlus absorbance = image.getTransmittance(sFiles.getForeIS(), sFiles.getBackIS());
+								IJ.saveAsTiff(absorbance, sFiles.getTransDir(true)+File.separator+image.getName());
+							}
 							
 							if (saveError) {
 								IJ.saveAsTiff(image.getErrorImage(), sFiles.getAbsorptionDir(true)+File.separator+image.getName()+" Error");
@@ -352,6 +383,10 @@ public class AbsorptionImage implements PlugIn {
 				}
 				
 			});
+			
+		pixelTypeGroup = new ButtonGroup();
+			useAbsorption = new JToggleButton("Calculate Absorbance");
+			useTransmittance = new JToggleButton("Calculate Transmittance");
 			
 		// Panel for SQuIRE file system
 		squirePanel = new JPanel(new GridBagLayout());

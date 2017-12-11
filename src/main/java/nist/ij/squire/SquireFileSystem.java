@@ -18,6 +18,7 @@ public class SquireFileSystem {
 	public static final String SEGMENTATION_DIR = "Segmented Images";
 	public static final String RAW_DIR = "Raw Images";
 	public static final String ABSORPTION_DIR = "Absorption Images";
+	public static final String TRANS_DIR = "Transmittance Images";
 	public static final String STITCH_DIR = "Stitch Images";
 	public static final String FILESEP = Pattern.quote(File.separator);
 	
@@ -526,6 +527,17 @@ public class SquireFileSystem {
 		return f.getAbsolutePath();
 	}
 	
+	public String getTransDir(boolean createDirectory) {
+		File f = new File(currentChannelDir()+File.separator+TRANS_DIR);
+		if (!f.isDirectory() && createDirectory) {
+			f.mkdir();
+		} else if (!f.isDirectory()) {
+			return null;
+		}
+		
+		return f.getAbsolutePath();
+	}
+	
 	public String getSegmentDir(boolean createDirectory) {
 		File f = new File(currentChannelDir()+File.separator+SEGMENTATION_DIR);
 		if (!f.isDirectory() && createDirectory) {
@@ -544,6 +556,33 @@ public class SquireFileSystem {
 		}
 		
 		File[] f = new File(getAbsorptionDir(false)).listFiles(new FileFilter(){
+
+			@Override
+			public boolean accept(File file) {
+				String name = file.getName();
+				if (name.toLowerCase().matches(imageFiles.get(sampIndex).get(timeIndex).get(chanIndex)[imageIndex].getName().toLowerCase())) {
+					System.out.println("Found processed file: " + imageFiles.get(sampIndex).get(timeIndex).get(chanIndex)[imageIndex].getName().toLowerCase());
+					return true;
+				} else {
+					return false;
+				}
+			}
+			
+		});
+		if (f.length>0) {
+			return true; 
+		} else {
+			return false;
+		}
+	}
+	
+	public boolean transAlreadyProcessed() {
+		
+		if (getTransDir(false)==null) {
+			return false;
+		}
+		
+		File[] f = new File(getTransDir(false)).listFiles(new FileFilter(){
 
 			@Override
 			public boolean accept(File file) {

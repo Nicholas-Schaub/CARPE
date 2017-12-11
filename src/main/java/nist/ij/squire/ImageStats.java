@@ -15,6 +15,7 @@ public class ImageStats {
 	private ImagePlus meanImage;
 	private ImagePlus stdImage;
 	private ImagePlus absImage;
+	private ImagePlus transImage;
 	private ImagePlus errImage;
 	public ImagePlus rawImage;
 	
@@ -83,6 +84,64 @@ public class ImageStats {
 		float error = (float) (z*sigmaA/Math.sqrt(sampNum));
 		
 		return error;
+	}
+	
+	public ImagePlus getTransmittance(ImageStats foreground, ImageStats background) {
+		/*****************************************************************************************
+		 * This method calculates the transmittance values for the image stored in an instance of
+		 * this class.
+		 * 
+		 * foreground - ImageStats object for a blank image with the light on
+		 * background - ImageStats object for a blank image with the light off
+		 *****************************************************************************************/
+		
+		ImagePlus sampSTDImage = this.getFrameDeviation();
+		ImagePlus sampMeanImage = this.getFrameMean();
+		ImagePlus forSTDImage = foreground.getFrameDeviation();
+		ImagePlus forMeanImage = foreground.getFrameMean();
+		ImagePlus backMeanImage = background.getFrameMean();
+
+		FloatProcessor absProc = new FloatProcessor(width,height);
+		FloatProcessor errProc = new FloatProcessor(width,height);
+		int flen = foreground.width*foreground.height;
+		float sampSTD;
+		float sampInt;
+		float forSTD;
+		float forInt;
+		float backMean;
+		float error;
+		float abs;
+		float[] adjust = new float[nFrames];
+		for (int i = 0; i<nFrames; i++) {
+			adjust[i] = (float) Math.pow(2, -i);
+		}
+
+		for (int j=0; j<flen; j++) {
+			for (int frame = 1; frame<=nFrames; frame++) {
+				sampMeanImage.setSlice(frame);
+				sampSTDImage.setSlice(frame);
+				backMean = backMeanImage.getProcessor().getf(j);
+				sampSTD = adjust[frame-1]*sampSTDImage.getProcessor().getf(j);
+				sampInt = (adjust[frame-1]*sampMeanImage.getProcessor().getf(j)-backMean);
+				forSTD = forSTDImage.getProcessor().getf(j);
+				forInt = forMeanImage.getProcessor().getf(j)-backMean;
+				error = this.getError(sampSTD, sampInt, nSlices, forSTD, forInt);
+				
+				if (error>0.01 && frame!=nFrames) {
+					continue;
+				} else {
+					abs = (float) sampInt/(forInt);
+					absProc.setf(j, abs);
+					errProc.setf(j, error);
+					break;
+				}
+			}
+		}
+		
+		errImage = new ImagePlus(name + " Error",errProc);
+		absImage = new ImagePlus(name + " Absorbance",absProc);
+
+		return absImage;
 	}
 	
 	public ImagePlus getAbsorbance(ImageStats foreground, ImageStats background) {
